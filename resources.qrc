@@ -12,7 +12,6 @@
         <file>qml/desktop/LayoutWindow.qml</file>
         <file>qml/desktop/TabView.qml</file>
         <file>qml/desktop/TabBar.qml</file>
-
         <file>qml/mobile/Main.qml</file>
         <file>qml/mobile/Key.qml</file>
         <file>qml/mobile/Keyboard.qml</file>
@@ -24,7 +23,6 @@
         <file>qml/mobile/PopupWindow.qml</file>
         <file>qml/mobile/UrlWindow.qml</file>
         <file>qml/mobile/LayoutWindow.qml</file>
-
         <file>icons/backspace.png</file>
         <file>icons/down.png</file>
         <file>icons/enter.png</file>
@@ -41,5 +39,7 @@
         <file>data/french.layout</file>
         <file>data/german.layout</file>
         <file>data/qwertz.layout</file>
+        <file>qml/mobile/TabBar.qml</file>
+        <file>qml/mobile/TabView.qml</file>
     </qresource>
 </RCC>

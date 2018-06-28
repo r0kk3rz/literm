@@ -15,7 +15,7 @@
     along with this work.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import QtQuick 2.0
+import QtQuick 2.6
 import literm 1.0
 import QtQuick.Window 2.0
 
@@ -47,6 +47,8 @@ Item {
 
         Rectangle {
             id: window
+
+            property string tabChangeKey: "Ctrl"
 
             property string fgcolor: "black"
             property string bgcolor: "#000000"
@@ -80,150 +82,292 @@ Item {
 
             property int scrollBarWidth: 6*window.pixelRatio
 
+            property Item textrender: tabView.activeTabItem
+
             anchors.fill: parent
             color: bgcolor
 
-            TextRender {
-                id: textrender
-                focus: true
+            TabView {
+                id: tabView
+                anchors.fill: parent
 
-                onHangupReceived: {
-                    Qt.quit()
-                }
-                onPanLeft: {
-                    util.notifyText(util.panLeftTitle)
-                    textrender.putString(util.panLeftCommand)
-                }
-                onPanRight: {
-                    util.notifyText(util.panRightTitle)
-                    textrender.putString(util.panRightCommand)
-                }
-                onPanUp: {
-                    util.notifyText(util.panUpTitle)
-                    textrender.putString(util.panUpCommand)
-                }
-                onPanDown: {
-                    util.notifyText(util.panDownTitle)
-                    textrender.putString(util.panDownCommand)
+                Component.onCompleted: {
+                    createTab();
                 }
 
-                onDisplayBufferChanged: window.displayBufferChanged()
-                charset: util.charset
-                terminalCommand: util.terminalCommand
-                terminalEnvironment: util.terminalEmulator
-                onTitleChanged: {
-                    util.windowTitle = title
-                }
-                dragMode: util.dragMode
-                onVisualBell: {
-                    if (util.visualBellEnabled)
-                        bellTimer.start()
-                }
-                contentItem: Item {
-                    width: parent.width
-                    height: parent.height
-                    opacity: (util.keyboardMode == Util.KeyboardFade && vkb.active) ? 0.3
-                                                                                    : 1.0
+                Component {
+                    id: terminalScreenComponent
 
-                    Behavior on opacity {
-                        NumberAnimation { duration: textrender.duration; easing.type: Easing.InOutQuad }
+                    TextRender {
+                        id: textrender
+                        focus: true
+
+                        onHangupReceived: {
+                            Qt.quit()
+                        }
+                        onPanLeft: {
+                            util.notifyText(util.panLeftTitle)
+                            textrender.putString(util.panLeftCommand)
+                        }
+                        onPanRight: {
+                            util.notifyText(util.panRightTitle)
+                            textrender.putString(util.panRightCommand)
+                        }
+                        onPanUp: {
+                            util.notifyText(util.panUpTitle)
+                            textrender.putString(util.panUpCommand)
+                        }
+                        onPanDown: {
+                            util.notifyText(util.panDownTitle)
+                            textrender.putString(util.panDownCommand)
+                        }
+
+                        onDisplayBufferChanged: {
+                            textrender.cutAfter = textrender.height;
+                            textrender.y = 0;
+                        }
+                        charset: util.charset
+                        terminalCommand: util.terminalCommand
+                        terminalEnvironment: util.terminalEmulator
+                        onTitleChanged: {
+                            util.windowTitle = title
+                        }
+                        dragMode: util.dragMode
+                        onVisualBell: {
+                            if (util.visualBellEnabled)
+                                bellTimer.start()
+                        }
+                        contentItem: Item {
+                            width: parent.width
+                            height: parent.height
+                            opacity: (util.keyboardMode == Util.KeyboardFade && vkb.active) ? 0.3
+                                                                                            : 1.0
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: textrender.duration; easing.type: Easing.InOutQuad }
+                            }
+                            Behavior on y {
+                                NumberAnimation { duration: textrender.duration; easing.type: Easing.InOutQuad }
+                            }
+                        }
+                        cellDelegate: Rectangle {
+                        }
+                        cellContentsDelegate: Text {
+                            id: text
+                            property bool blinking: false
+
+                            textFormat: Text.PlainText
+                            opacity: blinking ? 0.5 : 1.0
+                            SequentialAnimation {
+                                running: blinking
+                                loops: Animation.Infinite
+                                NumberAnimation {
+                                    target: text
+                                    property: "opacity"
+                                    to: 0.8
+                                    duration: 200
+                                }
+                                PauseAnimation {
+                                    duration: 400
+                                }
+                                NumberAnimation {
+                                    target: text
+                                    property: "opacity"
+                                    to: 0.5
+                                    duration: 200
+                                }
+                            }
+                        }
+                        cursorDelegate: Rectangle {
+                            id: cursor
+                            opacity: 0.5
+                            SequentialAnimation {
+                                running: Qt.application.state == Qt.ApplicationActive
+                                loops: Animation.Infinite
+                                NumberAnimation {
+                                    target: cursor
+                                    property: "opacity"
+                                    to: 0.8
+                                    duration: 200
+                                }
+                                PauseAnimation {
+                                    duration: 400
+                                }
+                                NumberAnimation {
+                                    target: cursor
+                                    property: "opacity"
+                                    to: 0.5
+                                    duration: 200
+                                }
+                            }
+                        }
+                        selectionDelegate: Rectangle {
+                            color: "blue"
+                            opacity: 0.5
+                        }
+
+                        Rectangle {
+                            id: bellTimerRect
+                            visible: opacity > 0
+                            opacity: bellTimer.running ? 0.5 : 0.0
+                            anchors.fill: parent
+                            color: "#ffffff"
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: 200
+                                }
+                            }
+                        }
+
+                        property int duration
+                        property int cutAfter: height
+
+                        height: parent.height
+                        width: parent.width
+                        font.family: util.fontFamily
+                        font.pointSize: util.fontSize
+                        allowGestures: !vkb.active
+
+                        onCutAfterChanged: {
+                            // this property is used in the paint function, so make sure that the element gets
+                            // painted with the updated value (might not otherwise happen because of caching)
+                            textrender.redraw();
+                        }
+
+                        Lineview {
+                            id: lineView
+                            opacity: ((util.keyboardMode == Util.KeyboardFade) && vkb.active) ? 0.8
+                                                                                              : 0.0
+                            cursorWidth: textrender.cellSize.width
+                            cursorHeight: textrender.cellSize.height
+                        }
+}
+                }
+
+                function createTab() {
+                    var tab = tabView.addTab("", terminalScreenComponent);
+                    tab.hangupReceived.connect(function() {
+                        closeTab(tab)
+                    });
+                    tabView.currentIndex = tabView.count - 1;
+                }
+
+                function closeTab(screenItem) {
+                    if (tabView.count == 1) {
+                        Qt.quit();
+                        return;
                     }
-                    Behavior on y {
-                        NumberAnimation { duration: textrender.duration; easing.type: Easing.InOutQuad }
-                    }
-                }
-                cellDelegate: Rectangle {
-                }
-                cellContentsDelegate: Text {
-                    id: text
-                    property bool blinking: false
-
-                    textFormat: Text.PlainText
-                    opacity: blinking ? 0.5 : 1.0
-                    SequentialAnimation {
-                        running: blinking
-                        loops: Animation.Infinite
-                        NumberAnimation {
-                            target: text
-                            property: "opacity"
-                            to: 0.8
-                            duration: 200
-                        }
-                        PauseAnimation {
-                            duration: 400
-                        }
-                        NumberAnimation {
-                            target: text
-                            property: "opacity"
-                            to: 0.5
-                            duration: 200
-                        }
-                    }
-                }
-                cursorDelegate: Rectangle {
-                    id: cursor
-                    opacity: 0.5
-                    SequentialAnimation {
-                        running: Qt.application.state == Qt.ApplicationActive
-                        loops: Animation.Infinite
-                        NumberAnimation {
-                            target: cursor
-                            property: "opacity"
-                            to: 0.8
-                            duration: 200
-                        }
-                        PauseAnimation {
-                            duration: 400
-                        }
-                        NumberAnimation {
-                            target: cursor
-                            property: "opacity"
-                            to: 0.5
-                            duration: 200
-                        }
-                    }
-                }
-                selectionDelegate: Rectangle {
-                    color: "blue"
-                    opacity: 0.5
-                }
-
-                Rectangle {
-                    id: bellTimerRect
-                    visible: opacity > 0
-                    opacity: bellTimer.running ? 0.5 : 0.0
-                    anchors.fill: parent
-                    color: "#ffffff"
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 200
+                    for (var i = 0; i < tabView.count; i++) {
+                        if (tabView.getTab(i) === screenItem) {
+                            tabView.removeTab(i);
+                            break;
                         }
                     }
                 }
 
-                property int duration
-                property int cutAfter: height
-
-                height: parent.height
-                width: parent.width
-                font.family: util.fontFamily
-                font.pointSize: util.fontSize
-                allowGestures: !vkb.active
-
-                onCutAfterChanged: {
-                    // this property is used in the paint function, so make sure that the element gets
-                    // painted with the updated value (might not otherwise happen because of caching)
-                    textrender.redraw();
+                Shortcut {
+                    sequence: "Ctrl+C"
+                    onActivated: {
+                        tabView.activeTabItem.copy();
+                    }
+                }
+                Shortcut {
+                    sequence: "Ctrl+V"
+                    onActivated: {
+                        if (tabView.activeTabItem.canPaste)
+                            tabView.activeTabItem.paste();
+                    }
                 }
 
-                Lineview {
-                    id: lineView
-                    opacity: ((util.keyboardMode == Util.KeyboardFade) && vkb.active) ? 0.8
-                                                                                      : 0.0
-                    cursorWidth: textrender.cellSize.width
-                    cursorHeight: textrender.cellSize.height
+                // hurgh, this is a bit ugly
+                Shortcut {
+                    sequence: window.tabChangeKey + "+1"
+                    onActivated: {
+                        if (tabView.count >= 2)
+                            tabView.currentIndex = 0 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+2"
+                    onActivated: {
+                        if (tabView.count >= 2)
+                            tabView.currentIndex = 1 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+3"
+                    onActivated: {
+                        if (tabView.count >= 3)
+                            tabView.currentIndex = 2 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+4"
+                    onActivated: {
+                        if (tabView.count >= 4)
+                            tabView.currentIndex = 3 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+5"
+                    onActivated: {
+                        if (tabView.count >= 5)
+                            tabView.currentIndex = 4 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+6"
+                    onActivated: {
+                        if (tabView.count >= 6)
+                            tabView.currentIndex = 5 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+7"
+                    onActivated: {
+                        if (tabView.count >= 7)
+                            tabView.currentIndex = 6 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+8"
+                    onActivated: {
+                        if (tabView.count >= 8)
+                            tabView.currentIndex = 7 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+9"
+                    onActivated: {
+                        if (tabView.count >= 9)
+                            tabView.currentIndex = 8 // yes, this is right. 0 indexed.
+                    }
+                }
+                Shortcut {
+                    sequence: window.tabChangeKey + "+0"
+                    onActivated: {
+                        if (tabView.count >= 10)
+                            tabView.currentIndex = 9 // yes, this is right. 0 indexed.
+                    }
                 }
 
+                Shortcut {
+                    sequence: "Ctrl+T"
+                    onActivated: {
+                        tabView.createTab();
+                    }
+                }
+                Shortcut {
+                    sequence: "Ctrl+Shift+Del"
+                    onActivated: {
+                        tabView.closeTab(tabView.getTab(tabView.currentIndex).item)
+                    }
+                }
+            }
+
+            Item {
+
+                anchors.fill: parent
                 Keyboard {
                     id: vkb
 
@@ -236,7 +380,7 @@ Item {
 
                     opacity: vkb.active ? 0.7 : 0.3
                     Behavior on opacity {
-                        NumberAnimation { duration: textrender.duration; easing.type: Easing.InOutQuad }
+                        NumberAnimation { duration: window.textrender.duration; easing.type: Easing.InOutQuad }
                     }
                 }
 
@@ -254,7 +398,7 @@ Item {
                             if (multiTouchArea.firstTouchId == -1) {
                                 multiTouchArea.firstTouchId = touchPoint.pointId
                                 //gestures c++ handler
-                                textrender.mousePress(touchPoint.x, touchPoint.y)
+                                window.textrender.mousePress(touchPoint.x, touchPoint.y)
                             }
                             var key = vkb.keyAt(touchPoint.x, touchPoint.y)
                             if (key != null) {
@@ -267,7 +411,7 @@ Item {
                         touchPoints.forEach(function (touchPoint) {
                             if (multiTouchArea.firstTouchId == touchPoint.pointId) {
                                 //gestures c++ handler
-                                textrender.mouseMove(touchPoint.x, touchPoint.y);
+                                window.textrender.mouseMove(touchPoint.x, touchPoint.y);
                             }
                             var key = multiTouchArea.pressedKeys[touchPoint.pointId]
                             if (key != null) {
@@ -294,7 +438,7 @@ Item {
                                 }
 
                                 //gestures c++ handler
-                                textrender.mouseRelease(touchPoint.x, touchPoint.y)
+                                window.textrender.mouseRelease(touchPoint.x, touchPoint.y)
                                 multiTouchArea.firstTouchId = -1
                             }
                             var key = multiTouchArea.pressedKeys[touchPoint.pointId]
@@ -305,6 +449,7 @@ Item {
                         })
                     }
                 }
+
             }
 
             MouseArea {
@@ -329,7 +474,7 @@ Item {
                 source: "qrc:/icons/scroll-indicator.png"
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
-                visible: textrender.showBufferScrollIndicator
+                visible: window.textrender.showBufferScrollIndicator
                 scale: window.pixelRatio
             }
 
@@ -440,7 +585,7 @@ Item {
                 if (!vkb.keyboardEnabled)
                     return;
 
-                textrender.duration = window.fadeOutTime;
+                window.textrender.duration = window.fadeOutTime;
                 fadeTimer.restart();
                 vkb.active = true;
                 setTextRenderAttributes();
@@ -448,7 +593,7 @@ Item {
 
             function sleepVKB()
             {
-                textrender.duration = window.fadeInTime;
+                window.textrender.duration = window.fadeInTime;
                 vkb.active = false;
                 setTextRenderAttributes();
             }
@@ -456,25 +601,25 @@ Item {
             function setTextRenderAttributes()
             {
                 if (util.keyboardMode == Util.KeyboardMove && vkb.active) {
-                    var move = textrender.cursorPixelPos().y
-                            + textrender.cellSize.height * (util.extraLinesFromCursor + 0.5)
+                    var move = window.textrender.cursorPixelPos().y
+                            + window.textrender.cellSize.height * (util.extraLinesFromCursor + 0.5)
                     if (move < vkb.y) {
-                        textrender.contentItem.y = 0
-                        textrender.cutAfter = vkb.y
+                        window.textrender.contentItem.y = 0
+                        window.textrender.cutAfter = vkb.y
                     } else {
-                        textrender.contentItem.y = 0 - move + vkb.y
-                        textrender.cutAfter = move
+                        window.textrender.contentItem.y = 0 - move + vkb.y
+                        window.textrender.cutAfter = move
                     }
                 } else {
-                    textrender.cutAfter = textrender.height
-                    textrender.contentItem.y = 0
+                    window.textrender.cutAfter = textrender.height
+                    window.textrender.contentItem.y = 0
                 }
             }
 
             function displayBufferChanged()
             {
-                lineView.lines = textrender.printableLinesFromCursor(util.extraLinesFromCursor);
-                lineView.cursorX = textrender.cursorPixelPos().x;
+                lineView.lines = window.textrender.printableLinesFromCursor(util.extraLinesFromCursor);
+                lineView.cursorX = window.textrender.cursorPixelPos().x;
                 setTextRenderAttributes();
             }
 

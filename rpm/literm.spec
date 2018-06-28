@@ -1,3 +1,8 @@
+%{!?qtc_qmake:%define qtc_qmake %qmake}
+%{!?qtc_qmake5:%define qtc_qmake5 %qmake5}
+%{!?qtc_make:%define qtc_make make}
+%{?qtc_builddir:%define _builddir %qtc_builddir}
+
 Name: literm
 Version: 1.3.2
 Release: 1
@@ -30,11 +35,9 @@ Provides: meego-terminal > 0.2.2
 
 
 %build
-sed -i 's,/opt/literm/,/usr/,' literm.pro
-qmake -qt=5 MEEGO_EDITION=nemo CONFIG+=enable-feedback
-# Inject version number from RPM into source
-sed -i -e 's/PROGRAM_VERSION="[^"]*"/PROGRAM_VERSION="%{version}"/g' version.h
-make %{?_smp_mflags}
+%qtc_qmake5 MEEGO_EDITION=nemo CONFIG+=enable-feedback
+
+%qtc_make %{?_smp_mflags}
 
 
 %install

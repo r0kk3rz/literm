@@ -53,7 +53,9 @@ OTHER_FILES += \
     qml/mobile/NotifyWin.qml \
     qml/mobile/UrlWindow.qml \
     qml/mobile/LayoutWindow.qml \
-    qml/mobile/PopupWindow.qml
+    qml/mobile/PopupWindow.qml \
+    qml/mobile/TabBar.qml \
+    qml/mobile/TabView.qml
 
 OTHER_FILES += \
     qml/desktop/Main.qml \
@@ -91,4 +93,8 @@ contains(DEFINES, MOBILE_BUILD) {
 }
 
 DEFINES += DEFAULT_DRAG_MODE=\\\"$$DEFAULT_DRAG_MODE\\\"
+
+DISTFILES += \
+    rpm/literm.spec \
+    literm.desktop.nemo
 
