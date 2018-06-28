@@ -15,6 +15,7 @@ enable-feedback {
 isEmpty(DEFAULT_FONT) {
     mac: DEFAULT_FONT = Monaco
     else: DEFAULT_FONT = monospace
+    linux: DEFINES += DETECT_FONT_USING_FC_MATCH
 }
 
 DEFINES += DEFAULT_FONTFAMILY=\\\"$$DEFAULT_FONT\\\"
@@ -82,3 +83,12 @@ contains(MEEGO_EDITION,nemo) {
 } else {
     DEFINES += DESKTOP_BUILD
 }
+
+contains(DEFINES, MOBILE_BUILD) {
+    DEFAULT_DRAG_MODE = scroll
+} else {
+    DEFAULT_DRAG_MODE = select
+}
+
+DEFINES += DEFAULT_DRAG_MODE=\\\"$$DEFAULT_DRAG_MODE\\\"
+
